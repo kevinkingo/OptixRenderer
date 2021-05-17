@@ -150,10 +150,7 @@ bool doObjTransform(shape_t& shape, std::vector<objTransform>& TArr)
 
 bool readXML(std::string fileName, 
         std::vector<shape_t>& shapes, 
-        std::vector<material_t>& materials, 
-        CameraInput& Camera, 
-        std::vector<Envmap>& envmaps, 
-        std::vector<Point>& points)
+        std::vector<material_t>& materials)
 {
     shapes.erase(shapes.begin(), shapes.end() );
     materials.erase(materials.begin(), materials.end() );
@@ -179,11 +176,11 @@ bool readXML(std::string fileName,
         }
         else{
             for(TiXmlNode* module = node -> FirstChild(); module != 0; module = module -> NextSibling() ){
-                if(module -> Value() == std::string("sensor") ){
-                    bool isLoadSensor = loadSensorFromXML(Camera, module );
-                    if(! isLoadSensor ) return false;
-                }
-                else if(module -> Value() == std::string("bsdf") ){
+                // if(module -> Value() == std::string("sensor") ){
+                //     bool isLoadSensor = loadSensorFromXML(Camera, module );
+                //     if(! isLoadSensor ) return false;
+                // }
+                if(module -> Value() == std::string("bsdf") ){
                     bool isLoadBsdf = loadBsdfFromXML(materials, module, fileName );
                     if(!isLoadBsdf) return false;
                 }
@@ -191,10 +188,10 @@ bool readXML(std::string fileName,
                     bool isLoadShape = loadShapeFromXML(shapes, materials, module, fileName );
                     if(!isLoadShape ) return false;
                 }
-                else if(module -> Value() == std::string("emitter") ){
-                    bool isLoadLight = loadLightFromXML(envmaps, points, module, fileName );
-                    if(!isLoadLight ) return false; 
-                }
+                // else if(module -> Value() == std::string("emitter") ){
+                //     bool isLoadLight = loadLightFromXML(envmaps, points, module, fileName );
+                //     if(!isLoadLight ) return false; 
+                // }
             }
         }
     }

@@ -157,7 +157,7 @@ void computeEnvmapDistribution(
 
 void createEnvmap(
         Context& context,
-        std::vector<Envmap>& envmaps, 
+        Envmap& env, 
         unsigned width, unsigned height, 
         unsigned gridWidth, unsigned gridHeight
         )
@@ -167,28 +167,20 @@ void createEnvmap(
         gridHeight = height;
     }
 
-    if(envmaps.size() == 0){
-        context["isEnvmap"] -> setInt(0);
-        // Create the texture sampler 
-        cv::Mat emptyMat = cv::Mat::zeros(1, 1, CV_32FC3);
-        createEnvmapBuffer(context, emptyMat, emptyMat, 1, 1);
-    }
-    else{
-        // Load the environmental map
-        Envmap env = envmaps[0];
-        cv::Mat envMat = loadEnvmap(env, width, height);
-        
-        unsigned kernelSize = std::max(5, int(height / 100) );
-        if(kernelSize % 2 == 0) kernelSize += 1;
-        cv::Mat envMatBlured(height, width, CV_32FC3);
-        cv::GaussianBlur(envMat, envMatBlured, cv::Size(kernelSize, kernelSize), 0, 0); 
+    // Load the environmental map
+    cv::Mat envMat = loadEnvmap(env, width, height);
+    
+    unsigned kernelSize = std::max(5, int(height / 100) );
+    if(kernelSize % 2 == 0) kernelSize += 1;
+    cv::Mat envMatBlured(height, width, CV_32FC3);
+    cv::GaussianBlur(envMat, envMatBlured, cv::Size(kernelSize, kernelSize), 0, 0); 
 
-        context["isEnvmap"] -> setInt(1); 
-        createEnvmapBuffer(context, envMat, envMatBlured, gridWidth, gridHeight);
+    context["isEnvmap"] -> setInt(1); 
+    createEnvmapBuffer(context, envMat, envMatBlured, gridWidth, gridHeight);
 
-        computeEnvmapDistribution(context, envMatBlured, 
-                width, height, gridWidth, gridHeight);
-    }
+    computeEnvmapDistribution(context, envMatBlured, 
+            width, height, gridWidth, gridHeight);
+    
 }
 
 void rotateUpdateEnvmap(Context& context, Envmap& env, float phiDelta, 

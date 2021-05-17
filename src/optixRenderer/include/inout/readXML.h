@@ -46,9 +46,6 @@ bool loadShapeFromXML(std::vector<shape_t>& shapes, std::vector<material_t>& mat
 
 bool readXML(std::string fileName, 
         std::vector<shape_t>& shapes, 
-        std::vector<material_t>& materials, 
-        CameraInput& Camera, 
-        std::vector<Envmap>& envmaps, 
-        std::vector<Point>& points);
+        std::vector<material_t>& materials);
 
 #endif

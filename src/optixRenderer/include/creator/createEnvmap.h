@@ -30,7 +30,7 @@ void computeEnvmapDistribution(
 
 void createEnvmap(
         Context& context,
-        std::vector<Envmap>& envmaps, 
+        Envmap& env, 
         unsigned width = 1024, unsigned height = 512, 
         unsigned gridWidth = 0, unsigned gridHeight = 0 );
 

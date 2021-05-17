@@ -124,31 +124,37 @@ float clip(float a, float min, float max){
 }
 
 
-bool writeBufferToFile(const char* fileName, float* imgData, int width, int height, bool isHdr = false, int mode = 0)
+bool writeBufferToFile(std::string fileName, float* imgData, int width, int height, int mode)
 {   
-    if(mode == 1 || mode == 2 || mode == 3 || mode == 4 || mode  == 6)
-        isHdr = false;
-    
-    if(mode == 5){
-        std::ofstream depthOut(fileName, std::ios::out|std::ios::binary);
-        depthOut.write((char*)&height, sizeof(int) );
-        depthOut.write((char*)&width, sizeof(int) );
-
-        float* image = new float[width * height];
-        for(int i = 0; i < height; i++){
-            for(int j = 0; j < width; j++){
-                image[i*width + j] = imgData[3 * ( (height-1-i) * width +j ) ];
-            }
-        }
-        depthOut.write( (char*)image, sizeof(float) * width * height);
-        depthOut.close();
-        delete [] image;
-
-        return true;
+    std::string suffix;
+    std::size_t pos = fileName.find_last_of(".");
+    if(pos == std::string::npos ){
+        suffix = std::string("");
+    }
+    else{
+        suffix = fileName.substr(pos+1, fileName.length() );
     }
 
-    if(isHdr){
-        FILE* imgOut = fopen(fileName, "w");
+    // if(mode == 5){
+    //     std::ofstream depthOut(fileName, std::ios::out|std::ios::binary);
+    //     depthOut.write((char*)&height, sizeof(int) );
+    //     depthOut.write((char*)&width, sizeof(int) );
+
+    //     float* image = new float[width * height];
+    //     for(int i = 0; i < height; i++){
+    //         for(int j = 0; j < width; j++){
+    //             image[i*width + j] = imgData[3 * ( (height-1-i) * width +j ) ];
+    //         }
+    //     }
+    //     depthOut.write( (char*)image, sizeof(float) * width * height);
+    //     depthOut.close();
+    //     delete [] image;
+
+    //     return true;
+    // }
+
+    if(suffix == std::string("hdr")) {
+        FILE* imgOut = fopen(fileName.c_str(), "w");
         if(imgOut == NULL){
             std::cout<<"Wrong: can not open the output file!"<<std::endl;
             return false;
@@ -187,96 +193,74 @@ bool writeBufferToFile(const char* fileName, float* imgData, int width, int heig
                 image.at<cv::Vec3b>(i, j)[2] = (unsigned char)(r * 255);
             }
         } 
-        cv::imwrite(fileName, image);
+        cv::imwrite(fileName.c_str(), image);
     }
 
     return true;
 }
 
 
-std::string generateOutputFilename(std::string fileName, int mode, bool isHdr, int i,  int camNum){
-    std::string root;
-    std::string suffix;
-    std::size_t pos = fileName.find_last_of(".");
-    if(pos == std::string::npos ){
-        root = fileName;
-        suffix = std::string("");
-    }
-    else{
-        root = fileName.substr(0, pos);
-        suffix = fileName.substr(pos+1, fileName.length() );
-    }
-    
-    if(mode == 0){
-        if(isHdr){
-            if(suffix != std::string("rgbe") ){
-                std::cout<<"Warning: we only support rgbe image for hdr"<<std::endl;
-            }
-            suffix = std::string("rgbe");
-        }
-        else{
-            if(suffix != std::string("bmp") && suffix != std::string("png") 
-                    && suffix != std::string("jpg") && suffix != std::string("jpeg") )
-            {
-                std::cout<<"Warning: only support jpg, bmp, png file format"<<std::endl;
-                suffix = std::string("png");
-            }
-        }
-    }
-    else if(mode == 1 || mode == 2 || mode == 3 || mode == 4 || mode == 6){
-        suffix = std::string("png");
-    }
-    else if(mode == 5){
-        suffix = std::string("dat");
-    }
-
-    std::string outputFileName;
-    std::string modeString = "";
-    switch(mode){
-        case 1: modeString = "baseColor"; break;
-        case 2: modeString = "normal"; break;
-        case 3: modeString = "roughness"; break;
-        case 4: modeString = "mask"; break;
-        case 5: modeString = "depth"; break;
-        case 6: modeString = "metallic"; break;
-    }
-
-    if(camNum > 0){
-        char camId[10];
-        std::sprintf(camId, "%d", i+1 );
-        outputFileName = root + modeString + "_" + camId + "." + suffix;
-    }
-    else{
-        outputFileName = root + modeString + "." + suffix;
-    }
-    return outputFileName;
-}
-
-bool loadCamFile(std::string fileName, int& camNum, std::vector<float>& originArr, std::vector<float>& targetArr, std::vector<float>& upArr)
+bool loadConfigFile(
+    std::string fileName,
+    int& renderNum, int& renderWidth, int& renderHeight, std::string& sampleType, int& sampleNum,
+    std::vector<int>& modes, std::vector<int>& camIds, std::vector<int>& lightIds, std::vector<std::string>& outputFilenames,
+    std::vector<CameraInput>& cameraInputs, std::vector<Envmap>& envmaps, std::vector<Point>& points
+)
 {    
     std::ifstream camIn(fileName.c_str(), std::ios::in);
     if(!camIn ){
         std::cout<<"Wrong: can not load the camera file "<<fileName<<" !"<<std::endl;
         return false;
     }
-    camIn >> camNum; 
-    for(int i = 0; i < camNum; i++){
-        std::vector<float> origin(3, 0.0f);
-        std::vector<float> target(3, 0.0f);
-        std::vector<float> up(3, 0.0f);
-        camIn>>origin[0]>>origin[1]>>origin[2];
-        camIn>>target[0]>>target[1]>>target[2];
-        camIn>>up[0]>>up[1]>>up[2];
+    // Render config
+    camIn >> renderNum >> renderWidth >> renderHeight >> sampleType >> sampleNum; 
+    for (int i = 0; i < renderNum; i++) {
+        int mode, camId, lightId;
+        std::string outputFilename;
 
-        for(int j = 0; j < 3; j++){
-            originArr.push_back(origin[j] );
-            targetArr.push_back(target[j] );
-            upArr.push_back(up[j] );
+        camIn >> mode >> camId >> lightId >> outputFilename;
+        modes.push_back(mode);
+        camIds.push_back(camId);
+        lightIds.push_back(lightId);
+        outputFilenames.push_back(outputFilename);
+    }
+
+    // Camera config
+    int camNum;
+    camIn >> camNum;
+    for (int i = 0; i < camNum; i++) {
+        CameraInput camInput;
+        camIn >> camInput.cameraType;
+        camIn >> camInput.origin[0] >> camInput.origin[1] >> camInput.origin[2];
+        camIn >> camInput.target[0] >> camInput.target[1] >> camInput.target[2];
+        camIn >> camInput.up[0] >> camInput.up[1] >> camInput.up[2];
+        camIn >> camInput.fov;
+        camInput.width = renderWidth;
+        camInput.height = renderHeight;
+        cameraInputs.push_back(camInput);
+    }
+
+    // Light config
+    int lightNum;
+    camIn >> lightNum;
+    for(int i = 0; i < lightNum; i++){
+        std::string lightType;
+        camIn >> lightType;
+        if (lightType == std::string("envmap")) {
+            Envmap env;
+            camIn >> env.scale;
+            camIn >> env.fileName;
+            envmaps.push_back(env);
+        }
+        else if (lightType == std::string("point")) {
+            Point p;
+            camIn >> p.intensity.x >> p.intensity.y >> p.intensity.z;
+            camIn >> p.position.x >> p.position.y >> p.position.z;
+            points.push_back(p);
         }
     }
     return true;
 }
-
 
 
 int main( int argc, char** argv )
@@ -284,9 +268,7 @@ int main( int argc, char** argv )
     bool use_pbo  = false;
 
     std::string fileName;
-    std::string outputFileName;
-    std::string cameraFile("");
-    int mode = 0; 
+    std::string configFile("");
     int maxIteration = -1;
     std::vector<int> gpuIds;
     float noiseLimit = 0.11;
@@ -301,9 +283,6 @@ int main( int argc, char** argv )
     bool isForceOutput = false;
     bool isMedianFilter = false;
 
-    int camStart = 0;
-    int camEnd = -1;
-
     Context context = 0;
 
     for(int i = 0; i < argc; i++){
@@ -317,26 +296,12 @@ int main( int argc, char** argv )
             }
             fileName = std::string(argv[++i] ); 
         }
-        else if(std::string(argv[i]) == std::string("-o") ){
-            if(i == argc - 1){
-                std::cout<<"Missing input variable"<<std::endl;
-                exit(1);
-            }
-            outputFileName = std::string(argv[++i] );
-        }
-        else if(std::string(argv[i]) == std::string("-m") ) {
-            if(i == argc - 1){
-                std::cout<<"Missing  input valriable"<<std::endl;
-                exit(1);
-            }
-            mode = atoi(argv[++i] );
-        }
         else if(std::string(argv[i] ) == std::string("-c") ){
             if(i == argc - 1){
                 std::cout<<"Missing inut variable"<<std::endl;
                 exit(1);
             }
-            cameraFile = std::string(argv[++i] );
+            configFile = std::string(argv[++i] );
         }
         else if(std::string(argv[i] ) == std::string("--gpuIds") ){
             if(i == argc - 1){
@@ -375,20 +340,6 @@ int main( int argc, char** argv )
             intensityLimit = flArr[0];
             intensityLimitEnabled = true;
         }
-        else if(std::string(argv[i] ) == std::string("--camStart") ){
-            if(i == argc - 1){
-                std::cout<<"Missing input variable"<<std::endl;
-                exit(1);
-            }
-            camStart = atoi(argv[++i] );
-        }
-        else if(std::string(argv[i] ) == std::string("--camEnd") ){
-            if(i == argc - 1){
-                std::cout<<"Missing input variable"<<std::endl;
-                exit(1);
-            }
-            camEnd = atoi(argv[++i] );
-        }
         else if(std::string(argv[i] ) == std::string("--forceOutput") ){
             isForceOutput = true;   
         }
@@ -422,12 +373,6 @@ int main( int argc, char** argv )
         }
     }
     
-    std::vector<shape_t> shapes;
-    std::vector<material_t> materials;
-    CameraInput cameraInput;
-    std::vector<Envmap> envmaps;
-    std::vector<Point> points;
-
     char fileNameNew[PATH_MAX+1 ];
     char* isRealPath = realpath(fileName.c_str(), fileNameNew );
     if(isRealPath == NULL){
@@ -435,17 +380,14 @@ int main( int argc, char** argv )
         return false;
     }
     fileName = std::string(fileNameNew );
-    
-    outputFileName = relativePath(fileName, outputFileName );
-
     std::cout<<"Input file name: "<<fileName<<std::endl;
-    std::cout<<"Output file name: "<<outputFileName<<std::endl;
 
-    bool isXml = readXML(fileName, shapes, materials, cameraInput, envmaps, points);
+    std::vector<shape_t> shapes;
+    std::vector<material_t> materials;
+    bool isXml = readXML(fileName, shapes, materials);
     if(!isXml ) return false;
 
     long unsigned vertexNum = vertexCount(shapes );
-
     std::cout<<"Material num: "<<materials.size() << std::endl;
     std::cout<<"Shape num: "<<shapes.size() <<std::endl;
     std::cout<<"Vertex num: "<<vertexNum <<std::endl;
@@ -454,133 +396,135 @@ int main( int argc, char** argv )
         return 0;
     }
 
-    std::cout<<"Camera Parameters: "<<std::endl;
-    std::cout<<"Camera Field of View: "<<cameraInput.fov<<std::endl;
-    std::cout<<"Width: "<<cameraInput.width<<std::endl;
-    std::cout<<"Height: "<<cameraInput.height<<std::endl;
-    std::cout<<"FovAxis: ";
-    if(cameraInput.isAxisX == true)
-        std::cout<<"x"<<std::endl;
-    else
-        std::cout<<"y"<<std::endl;
-    std::cout<<"Target: "<<cameraInput.target[0]<<' '<<cameraInput.target[1]<<' '<<cameraInput.target[2]<<std::endl;
-    std::cout<<"Origin: "<<cameraInput.origin[0]<<' '<<cameraInput.origin[1]<<' '<<cameraInput.origin[2]<<std::endl;
-    std::cout<<"Up: "<<cameraInput.up[0]<<' '<<cameraInput.up[1]<<' '<<cameraInput.up[2]<<std::endl; 
-    std::cout<<"Sample Count: "<<cameraInput.sampleNum<<std::endl;
-    
-    std::cout<<"Sampler: "<<cameraInput.sampleType<<std::endl;
-    std::cout<<"Sampler Count: "<<cameraInput.sampleNum <<std::endl;
-
-    if(envmaps.size() == 0){
-        std::cout<<"No Environmental maps."<<std::endl;
-    }
-    else{
-        std::cout<<"Environmental map: "<<envmaps[0].fileName<<std::endl;
-        std::cout<<"Environmental scale: "<<envmaps[0].scale<<std::endl;
-    }
-
-    if(points.size() == 0){
-        std::cout<<"No point light source."<<std::endl;
-    }
-    else{
-        std::cout<<"Point Light num: "<<points.size()<<std::endl;
-        std::cout<<"Light intensity: ";
-        std::cout<<points[0].intensity.x<<' '<<points[0].intensity.y<<' '<<points[0].intensity.z<<std::endl;
-        std::cout<<"Light Position: ";
-        std::cout<<points[0].position.x<<' '<<points[0].position.y<<' '<<points[0].position.z<<std::endl;
-    }
-
-    // Camera File
+    // Config File
     // The begining of the file should be the number of camera we are going to HAVE
     // Then we just load the camera view one by one, in the order of origin, target and up
-    int camNum = 1;
-    std::vector<float> originArr;
-    std::vector<float> targetArr;
-    std::vector<float> upArr;
-    if(cameraFile != std::string("") ){
-        cameraFile = relativePath(fileName, cameraFile );
-        bool isLoad = loadCamFile(cameraFile, camNum, originArr, targetArr, upArr);
+    int renderNum, renderWidth, renderHeight;
+    std::string sampleType;
+    int sampleNum;
+    std::vector<int> modes, camIds, lightIds;
+    std::vector<std::string> outputFilenames;
+
+    std::vector<CameraInput> cameraInputs;
+    std::vector<Envmap> envmaps;
+    std::vector<Point> points;
+
+    if(configFile != std::string("") ){
+        configFile = relativePath(fileName, configFile );
+        bool isLoad = loadConfigFile(
+            configFile,
+            renderNum, renderWidth, renderHeight, sampleType, sampleNum,
+            modes, camIds, lightIds, outputFilenames,
+            cameraInputs, envmaps, points);
         if (!isLoad ) return false;
     }
     else{
-        camNum = 1;
-        for(int i = 0; i < 3; i++){
-            originArr.push_back(cameraInput.origin[i]);
-            targetArr.push_back(cameraInput.target[i]);
-            upArr.push_back(cameraInput.up[i]);
-        }
+        std::cout<<"Warning: wrong config file"<<std::endl;
+        return 0;
     }
 
-    unsigned scale = createContext(context, use_pbo, cameraInput.cameraType, 
-            cameraInput.width, 
-            cameraInput.height, 
-            mode, 
-            cameraInput.sampleNum, 
-            maxPathLength, 
-            rrBeginLength );
-
+    createContext(context, use_pbo, renderWidth, renderHeight, rrBeginLength);
     if(gpuIds.size() != 0){
         std::cout<<"GPU Num: "<<gpuIds.size()<<std::endl;
         context -> setDevices(gpuIds.begin(), gpuIds.end() );
     }
     boundingBox(context, shapes);
-    createGeometry(context, shapes, materials, mode);
-    createAreaLightsBuffer(context, shapes);
-    createEnvmap(context, envmaps); 
-    createPointLight(context, points);
     
-    std::cout<<std::endl;
-    
-    float* imgData = new float[cameraInput.width * cameraInput.height * 3];
-    unsigned camSp, camEp;
-    camSp = std::max(0, camStart);
-    if(camEnd == -1){
-        camEp = camNum;
-    }
-    else{
-        camEp = std::max(std::min(camEnd, camNum), 0);
-    }
-    
-    for(int i = camSp; i < camEp; i++){ 
-        std::string outputFileNameNew = generateOutputFilename(outputFileName, mode,
-                cameraInput.isHdr, i, camNum);
-
-        std::ifstream f(outputFileNameNew.c_str() );
+    float* imgData = new float[renderWidth * renderHeight * 3];
+    for(int i = 0; i < renderNum; i++){ 
+        // Filename
+        std::string outputFileName = relativePath(fileName, outputFilenames[i] );
+        std::ifstream f(outputFileName.c_str() );
         if(f.good() && !isForceOutput ) {
-            std::cout<<"Warning: "<<outputFileNameNew<<" already exists. Will be skipped."<<std::endl;
+            std::cout<<"Warning: "<<outputFileName<<" already exists. Will be skipped."<<std::endl;
             continue;
         }
         else{
-            std::cout<<"Output Image: "<<outputFileNameNew<<std::endl;
+            std::cout<<"Output Image: "<<outputFileName<<std::endl;
         }
 
-        for(int j = 0; j < 3; j++){
-            cameraInput.origin[j] = originArr[i * 3 + j];
-            cameraInput.target[j] = targetArr[i * 3 + j];
-            cameraInput.up[j] = upArr[i * 3 + j];
+        // Render config
+        unsigned maxDepth = maxPathLength;
+        unsigned sqrt_num_samples = (unsigned )(sqrt(float(sampleNum )) + 1.0);
+        if(sqrt_num_samples == 0){
+            sqrt_num_samples = 1;
         }
-        createCamera(context, cameraInput);
-        bool isFindFlash = false;
-        for(int j = 0; j < points.size(); j++){
-            if(points[j].isFlash == true){
-                isFindFlash = true;
-                points[j].position.x = cameraInput.origin[0];
-                points[j].position.y = cameraInput.origin[1];
-                points[j].position.z = cameraInput.origin[2];
-            }
+        if(modes[i] > 0){
+            maxDepth = 1;
+            sqrt_num_samples = 4;
         }
-        if(isFindFlash ){
-            updatePointLight(context, points);            
+
+        context["max_depth"]->setInt(maxDepth);
+        context["sqrt_num_samples"] -> setUint(sqrt_num_samples);
+
+        // Geometry Programs
+        std::string miss_path( ptxPath("envmap.cu") );
+        if(modes[i] == 0){
+            Program miss_program = context->createProgramFromPTXFile(miss_path, "envmap_miss");
+            context->setMissProgram(0, miss_program);
+        }
+        else{
+            Program miss_program = context->createProgramFromPTXFile(miss_path, "miss");
+            context->setMissProgram(0, miss_program);
+        }
+
+        std::cout << "Create Geometry" << std::endl;
+        createGeometry(context, shapes, materials, modes[i]);
+
+        // Camera
+        if(cameraInputs[camIds[i]].cameraType == std::string("perspective") ){
+            context["cameraMode"] -> setInt(0);
+        }
+        else if(cameraInputs[camIds[i]].cameraType == std::string("envmap") ){
+            context["cameraMode"] -> setInt(1);
+        }
+        else if(cameraInputs[camIds[i]].cameraType == std::string("hemisphere") ){
+            context["cameraMode"] -> setInt(2);
+        }
+        else if(cameraInputs[camIds[i]].cameraType == std::string("orthographic") ){
+            context["cameraMode"] -> setInt(3);
+        }
+        else{ 
+            std::cout<<"Wrong: unrecognizable camera type!"<<std::endl;
+            exit(1);
+        }
+        std::cout << "Create Camera" << std::endl;
+        createCamera(context, cameraInputs[camIds[i]]);
+
+        // bool isFindFlash = false;
+        // for(int j = 0; j < points.size(); j++){
+        //     if(points[j].isFlash == true){
+        //         isFindFlash = true;
+        //         points[j].position.x = cameraInput.origin[0];
+        //         points[j].position.y = cameraInput.origin[1];
+        //         points[j].position.z = cameraInput.origin[2];
+        //     }
+        // }
+        // if(isFindFlash ){
+        //     updatePointLight(context, points);            
+        // }
+        std::cout << "Create Light" << std::endl;
+        createPointLight(context, points);
+        createAreaLightsBuffer(context, shapes);
+
+        if (modes[i] == 0) {
+            createEnvmap(context, envmaps[lightIds[i]]); 
+        } 
+        else {
+            context["isEnvmap"] -> setInt(0);
+            // Create the texture sampler 
+            cv::Mat emptyMat = cv::Mat::zeros(1, 1, CV_32FC3);
+            createEnvmapBuffer(context, emptyMat, emptyMat, 1, 1);
         }
 
         context->validate();
         clock_t t;
         t = clock();
         
-        if(intensityLimitEnabled == true && mode == 0){
-            independentSampling(context, cameraInput.width, cameraInput.height, imgData, 4);
+        if(intensityLimitEnabled == true && modes[i] == 0){
+            independentSampling(context, renderWidth, renderHeight, imgData, 4);
             float meanIntensity = 0;
-            int pixelNum = cameraInput.width * cameraInput.height * 3;
+            int pixelNum = renderWidth * renderHeight * 3;
             for(int i = 0; i < pixelNum; i++){
                 meanIntensity += imgData[i];
             }
@@ -592,23 +536,20 @@ int main( int argc, char** argv )
             }
         }
 
-        std::cout<<"Start to render: "<<i+1<<"/"<<camEp<<std::endl;
-        if(cameraInput.sampleType == std::string("independent") || mode != 0){
-            int sampleNum = cameraInput.sampleNum;
-            independentSampling(context, cameraInput.width, cameraInput.height, imgData, sampleNum, scale);
+        std::cout<<"Start to render: "<<i+1<<"/"<<renderNum<<std::endl;
+        if(sampleType == std::string("independent") || modes[i] != 0){
+            independentSampling(context, renderWidth, renderHeight, imgData, sampleNum);
         }
-        else if(cameraInput.sampleType == std::string("adaptive") ) {
-            int sampleNum = cameraInput.sampleNum; 
-            
+        else if(sampleType == std::string("adaptive") ) {            
             if(maxIteration >= 1){
-                cameraInput.adaptiveSampler.maxIteration =  maxIteration; 
+                cameraInputs[i].adaptiveSampler.maxIteration =  maxIteration; 
             }
 
-            bool isTooNoisy = adaptiveSampling(context, cameraInput.width, cameraInput.height, sampleNum, imgData, 
+            bool isTooNoisy = adaptiveSampling(context, renderWidth, renderHeight, sampleNum, imgData, 
                     noiseLimit, noiseLimitEnabled, 
-                    cameraInput.adaptiveSampler.maxIteration, 
-                    cameraInput.adaptiveSampler.noiseThreshold, 
-                    scale);
+                    cameraInputs[i].adaptiveSampler.maxIteration, 
+                    cameraInputs[i].adaptiveSampler.noiseThreshold
+                    );
             std::cout<<"Sample Num: "<<sampleNum<<std::endl;
             if(isTooNoisy){
                 std::cout<<"This image will not be output!"<<std::endl;
@@ -618,15 +559,14 @@ int main( int argc, char** argv )
         t = clock() - t;
         std::cout<<"Time: "<<float(t) / CLOCKS_PER_SEC<<'s'<<std::endl;
         
-        if(isMedianFilter && mode == 0 ){
-            medianFilter(imgData, cameraInput.width, cameraInput.height, 1);
+        if(isMedianFilter && modes[i] == 0 ){
+            medianFilter(imgData, renderWidth, renderHeight, 1);
         }
          
-        bool isWrite = writeBufferToFile(outputFileNameNew.c_str(), 
-                imgData,
-                cameraInput.width, cameraInput.height, 
-                cameraInput.isHdr,
-                mode);
+        bool isWrite = writeBufferToFile(
+            outputFileName, 
+            imgData, renderWidth, renderHeight, modes[i]
+        );
     }
     destroyContext(context );
     delete [] imgData;
