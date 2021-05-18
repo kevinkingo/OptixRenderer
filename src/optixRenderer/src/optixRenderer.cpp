@@ -483,6 +483,7 @@ int main( int argc, char** argv )
         }
         else if(cameraInputs[camIds[i]].cameraType == std::string("orthographic") ){
             context["cameraMode"] -> setInt(3);
+            context["fov"] -> setFloat(cameraInputs[camIds[i]].fov);
         }
         else{ 
             std::cout<<"Wrong: unrecognizable camera type!"<<std::endl;

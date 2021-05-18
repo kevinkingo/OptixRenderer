@@ -48,6 +48,7 @@ rtDeclareVariable(uint2,         launch_index, rtLaunchIndex, );
 rtDeclareVariable(unsigned int, sqrt_num_samples, , );
 rtDeclareVariable(unsigned int, rr_begin_depth, , );
 rtDeclareVariable(int, cameraMode, , );
+rtDeclareVariable(float, fov, , );
 rtDeclareVariable(unsigned int, initSeed, , );
 
 RT_PROGRAM void pinhole_camera()
@@ -67,16 +68,29 @@ RT_PROGRAM void pinhole_camera()
     
     do{
         // Sample pixel using jittering
-        float3 ray_origin = eye;
         unsigned int x = samples_per_pixel%sqrt_num_samples;
         unsigned int y = samples_per_pixel/sqrt_num_samples;
         float2 jitter = make_float2(x-rnd(seed), y-rnd(seed) );
         float2 d = pixel + jitter*jitter_scale;
 
+        float3 ray_origin;
+        if (cameraMode == 3) {
+            ray_origin = (eye
+                + d.x * fov / 2 * normalize(cameraU)
+                + d.y * fov / 2 / screen.x * screen.y * normalize(cameraV)
+            );
+        }
+        else {
+            ray_origin = eye;
+        }
+
         
         float3 ray_direction;
         if(cameraMode == 0){
             ray_direction = normalize(d.x*cameraU + d.y*cameraV + cameraW);
+        }
+        else if (cameraMode == 3) {
+            ray_direction = cameraW;
         }
         else{
             float3 axisZ = normalize(cameraW );
