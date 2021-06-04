@@ -423,15 +423,17 @@ int main( int argc, char** argv )
         return 0;
     }
 
-    createContext(context, use_pbo, renderWidth, renderHeight, rrBeginLength);
-    if(gpuIds.size() != 0){
-        std::cout<<"GPU Num: "<<gpuIds.size()<<std::endl;
-        context -> setDevices(gpuIds.begin(), gpuIds.end() );
-    }
-    boundingBox(context, shapes);
     
     float* imgData = new float[renderWidth * renderHeight * 3];
     for(int i = 0; i < renderNum; i++){ 
+
+        createContext(context, use_pbo, renderWidth, renderHeight, rrBeginLength);
+        if(gpuIds.size() != 0){
+            std::cout<<"GPU Num: "<<gpuIds.size()<<std::endl;
+            context -> setDevices(gpuIds.begin(), gpuIds.end() );
+        }
+        boundingBox(context, shapes);
+
         // Filename
         std::string outputFileName = relativePath(fileName, outputFilenames[i] );
         std::ifstream f(outputFileName.c_str() );
@@ -568,8 +570,8 @@ int main( int argc, char** argv )
             outputFileName, 
             imgData, renderWidth, renderHeight, modes[i]
         );
+        destroyContext(context );
     }
-    destroyContext(context );
     delete [] imgData;
 
     return 0;
