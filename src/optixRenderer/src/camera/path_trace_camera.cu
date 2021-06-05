@@ -70,7 +70,7 @@ RT_PROGRAM void pinhole_camera()
         // Sample pixel using jittering
         unsigned int x = samples_per_pixel%sqrt_num_samples;
         unsigned int y = samples_per_pixel/sqrt_num_samples;
-        float2 jitter = make_float2(x-rnd(seed), y-rnd(seed) );
+        float2 jitter = sqrt_num_samples == 1 ? make_float2(x+0.5, y+0.5) : make_float2(x+rnd(seed), y+rnd(seed) );
         float2 d = pixel + jitter*jitter_scale;
 
         float3 ray_origin;

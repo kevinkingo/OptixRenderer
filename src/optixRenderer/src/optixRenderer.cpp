@@ -453,7 +453,7 @@ int main( int argc, char** argv )
         }
         if(modes[i] > 0){
             maxDepth = 1;
-            sqrt_num_samples = 4;
+            sqrt_num_samples = 1;
         }
 
         context["max_depth"]->setInt(maxDepth);
